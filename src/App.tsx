@@ -2,35 +2,48 @@ import React, { useState, useEffect } from "react";
 import "./App.css";
 import { addNote, deleteNote, subscribeToNotes, Note } from "./firebase/notesService";
 
+/**
+ * Main App component that provides the Notes Management interface
+ * Integrates with Firebase Firestore for cloud data storage
+ */
 function App() {
+  // State management for notes and form inputs
   const [notes, setNotes] = useState<Note[]>([]);
   const [newNote, setNewNote] = useState({ title: '', content: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Real-time subscription to notes
+  /**
+   * Set up real-time subscription to Firebase Firestore
+   * This creates a live connection that updates the UI whenever data changes
+   */
   useEffect(() => {
     const unsubscribe = subscribeToNotes((updatedNotes) => {
       setNotes(updatedNotes);
     });
 
-    // Cleanup subscription on unmount
+    // Cleanup subscription when component unmounts
     return () => unsubscribe();
   }, []);
 
+  /**
+   * Handles adding a new note to Firebase Firestore
+   * Validates input and provides user feedback during the process
+   */
   const handleAddNote = async () => {
     if (newNote.title.trim() && newNote.content.trim()) {
       setLoading(true);
       setError(null);
       
       try {
+        // Add note to Firebase with automatic ID generation
         await addNote({
           title: newNote.title.trim(),
           content: newNote.content.trim(),
           category: 'general'
         });
         
-        // Clear form
+        // Clear form after successful save
         setNewNote({ title: '', content: '' });
       } catch (err) {
         setError('Failed to add note. Please try again.');
@@ -41,6 +54,10 @@ function App() {
     }
   };
 
+  /**
+   * Handles deleting a note from Firebase Firestore
+   * @param noteId - The unique Firebase document ID of the note to delete
+   */
   const handleDeleteNote = async (noteId: string) => {
     try {
       await deleteNote(noteId);
