@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import { addNote, deleteNote, subscribeToNotes, Note } from "./firebase/notesService";
+import { addNote, deleteNote, updateNote, subscribeToNotes, Note } from "./firebase/notesService";
 
 /**
  * Main App component that provides the Notes Management interface
@@ -12,6 +12,8 @@ function App() {
   const [newNote, setNewNote] = useState({ title: '', content: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingNote, setEditingNote] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ title: '', content: '' });
 
   /**
    * Set up real-time subscription to Firebase Firestore
@@ -67,6 +69,48 @@ function App() {
     }
   };
 
+  /**
+   * Starts editing mode for a specific note
+   * Populates the edit form with current note data
+   */
+  const handleEditNote = (note: Note) => {
+    setEditingNote(note.id || '');
+    setEditForm({ title: note.title, content: note.content });
+  };
+
+  /**
+   * Cancels editing mode and resets the edit form
+   */
+  const handleCancelEdit = () => {
+    setEditingNote(null);
+    setEditForm({ title: '', content: '' });
+  };
+
+  /**
+   * Saves the edited note to Firebase Firestore
+   * Updates the note with new title and content
+   */
+  const handleSaveEdit = async (noteId: string) => {
+    if (editForm.title.trim() && editForm.content.trim()) {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        await updateNote(noteId, {
+          title: editForm.title.trim(),
+          content: editForm.content.trim()
+        });
+        setEditingNote(null);
+        setEditForm({ title: '', content: '' });
+      } catch (err) {
+        setError('Failed to update note. Please try again.');
+        console.error('Error updating note:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   return (
     <div className="app-container">
       <div className="note-form">
@@ -110,22 +154,75 @@ function App() {
         ) : (
           notes.map((note) => (
             <div key={note.id} className="note-card">
-              <div className="note-header">
-                <h3 className="note-title">{note.title}</h3>
-                <button 
-                  className="delete-btn"
-                  onClick={() => note.id && handleDeleteNote(note.id)}
-                  title="Delete note"
-                >
-                  ×
-                </button>
-              </div>
-              <p className="note-content">{note.content}</p>
-              {note.category && <span className="note-category">{note.category}</span>}
-              {note.createdAt && (
-                <div className="note-date">
-                  Created: {new Date(note.createdAt).toLocaleDateString()}
+              {editingNote === note.id ? (
+                // Edit mode
+                <div className="edit-form">
+                  <input
+                    type="text"
+                    value={editForm.title}
+                    onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                    className="edit-title-input"
+                    placeholder="Title"
+                  />
+                  <textarea
+                    value={editForm.content}
+                    onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                    className="edit-content-textarea"
+                    placeholder="Content"
+                    rows={4}
+                  />
+                  <div className="edit-buttons">
+                    <button
+                      className="save-btn"
+                      onClick={() => note.id && handleSaveEdit(note.id)}
+                      disabled={loading || !editForm.title.trim() || !editForm.content.trim()}
+                    >
+                      {loading ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      className="cancel-btn"
+                      onClick={handleCancelEdit}
+                      disabled={loading}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                // View mode
+                <>
+                  <div className="note-header">
+                    <h3 className="note-title">{note.title}</h3>
+                    <div className="note-actions">
+                      <button 
+                        className="edit-btn"
+                        onClick={() => handleEditNote(note)}
+                        title="Edit note"
+                      >
+                        ✏️
+                      </button>
+                      <button 
+                        className="delete-btn"
+                        onClick={() => note.id && handleDeleteNote(note.id)}
+                        title="Delete note"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                  <p className="note-content">{note.content}</p>
+                  {note.category && <span className="note-category">{note.category}</span>}
+                  {note.createdAt && (
+                    <div className="note-date">
+                      Created: {new Date(note.createdAt).toLocaleDateString()}
+                    </div>
+                  )}
+                  {note.updatedAt && note.updatedAt !== note.createdAt && (
+                    <div className="note-date">
+                      Updated: {new Date(note.updatedAt).toLocaleDateString()}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))
